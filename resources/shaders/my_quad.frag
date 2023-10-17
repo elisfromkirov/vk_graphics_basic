@@ -32,7 +32,7 @@ void sort(inout vec4 values[9])
 vec4 median(inout vec4 values[9])
 {
   sort(values);
-  return values[5];
+  return values[4];
 }
 
 void main()
