@@ -76,7 +76,7 @@ void SimpleCompute::CreateDevice(uint32_t a_deviceId)
 void SimpleCompute::SetupSimplePipeline(const std::vector<float>& values)
 {
   std::vector<std::pair<VkDescriptorType, uint32_t> > dtypes = {
-      {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,             3}
+      {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,             2}
   };
 
   // Создание и аллокация буферов
