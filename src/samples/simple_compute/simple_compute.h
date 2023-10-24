@@ -73,26 +73,30 @@ private:
   std::vector<const char*> m_validationLayers;
   std::shared_ptr<vk_utils::ICopyEngine> m_pCopyHelper;
 
-  VkDescriptorSet       m_sumDS; 
-  VkDescriptorSetLayout m_sumDSLayout = nullptr;
+  VkDescriptorSet       m_descriptorSet; 
+  VkDescriptorSetLayout m_descriptorSetLayout = nullptr;
   
   VkPipeline m_pipeline;
   VkPipelineLayout m_layout;
 
-  VkBuffer m_A, m_B, m_sum;
+  VkBuffer m_input;
+  VkBuffer m_output;
  
   void CreateInstance();
   void CreateDevice(uint32_t a_deviceId);
 
   void BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkPipeline a_pipeline);
 
-  void SetupSimplePipeline();
+  void SetupSimplePipeline(const std::vector<float>& values);
   void CreateComputePipeline();
   void CleanupPipeline();
 
   void Cleanup();
 
   void SetupValidationLayers();
+
+  void ComputeOnGPU(const std::vector<float>& values);
+  void ComputeOnCPU(const std::vector<float>& values);
 };
 
 

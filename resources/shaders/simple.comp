@@ -1,30 +1,44 @@
 #version 430
 
-layout( local_size_x = 32 ) in;
+layout(local_size_x = 32) in;
 
-layout( push_constant ) uniform params {
-  uint len;
+layout(push_constant) uniform params {
+  uint size;
 } PushConstant;
 
-layout(std430, binding = 0) buffer a 
+layout(std430, binding = 0) buffer Input
 {
-    float A[];
+    float values[];
 };
 
-layout(std430, binding = 1) buffer b
+layout(std430, binding = 1) buffer Output
 {
-    float B[];
-};
-
-layout(std430, binding = 2) buffer Sum
-{
-    float sum[];
+    float average_values[];
 };
 
 void main() 
 {
     uint idx = gl_GlobalInvocationID.x;
-    if (idx < PushConstant.len) {
-        sum[idx] = A[idx] + B[idx];
+
+    if (idx < PushConstant.size)
+    {
+        uint begin = 0;
+        if (3 < idx)
+        {
+            begin = idx - 3;
+        }
+
+        uint end = PushConstant.size;
+        if (idx + 3 < PushConstant.size)
+        {
+            end = idx + 4;
+        }
+
+        float sum = 0.0;
+        for (uint i = begin; i < end; ++i)
+        {
+            sum += values[i];
+        }
+        average_values[idx] = sum / 7.0;
     }
 }
