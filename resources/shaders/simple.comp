@@ -29,7 +29,7 @@ void main()
         }
 
         uint end = PushConstant.size;
-        if (idx + 3 < PushConstant.size)
+        if (idx + 4 < PushConstant.size)
         {
             end = idx + 4;
         }

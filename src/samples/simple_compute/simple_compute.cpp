@@ -193,9 +193,9 @@ void SimpleCompute::CreateComputePipeline()
 
 void SimpleCompute::Execute()
 {
-  std::vector<float> values(m_length, 0);
-  for (uint32_t i = 0; i < values.size(); ++i) {
-    values[i] = float(i);
+  std::vector<float> values{};
+  for (uint32_t i = 0; i < m_length; ++i) {
+    values.push_back((rand() % 1000 - 500));
   }
   ComputeOnGPU(values);
   ComputeOnCPU(values);
@@ -242,7 +242,7 @@ void SimpleCompute::ComputeOnGPU(const std::vector<float>& values)
 
   std::chrono::duration<double> elapsed_time = finish_time - start_time;
 
-  std::cout << "ComputeOnGPU " << elapsed_time.count() << "s" << std::endl;
+  std::cout << "ComputeOnGPU: result=" << sum << " elapsed_time=" << elapsed_time.count() << "s" << std::endl;
 }
 
 
@@ -252,7 +252,7 @@ void SimpleCompute::ComputeOnCPU(const std::vector<float>& values)
 
   auto start_time = std::chrono::high_resolution_clock::now();
 
-  for (size_t idx = 0; idx < values.size(); ++idx)
+  for (size_t idx = 0; idx < m_length; ++idx)
   {
       size_t begin = 0;
       if (3 < idx)
@@ -260,22 +260,22 @@ void SimpleCompute::ComputeOnCPU(const std::vector<float>& values)
           begin = idx - 3;
       }
 
-      size_t end = values.size();
-      if (idx + 3 < values.size())
+      size_t end = m_length;
+      if (idx + 4 < m_length)
       {
           end = idx + 4;
       }
 
-      float sum = 0.0;
+      float sum = 0.0f;
       for (size_t i = begin; i < end; ++i)
       {
           sum += values[i];
       }
-      average_values[idx] = sum / 7.0;
+      average_values[idx] = sum / 7.0f;
   }
 
   float sum = 0.0;
-  for (size_t i = 0; i < values.size(); ++i)
+  for (size_t i = 0; i < m_length; ++i)
   {
     float delta = values[i] - average_values[i];
     sum += delta;
@@ -285,5 +285,5 @@ void SimpleCompute::ComputeOnCPU(const std::vector<float>& values)
 
   std::chrono::duration<double> elapsed_time = finish_time - start_time;
 
-  std::cout << "ComputeOnCPU " << elapsed_time.count() << "s" << std::endl;
+  std::cout << "ComputeOnCPU: result=" << sum << " elapsed_time=" << elapsed_time.count() << "s" << std::endl;
 }
