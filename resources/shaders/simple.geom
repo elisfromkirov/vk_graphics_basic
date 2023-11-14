@@ -17,7 +17,7 @@ layout(location = 0) in VS_OUT
     vec2 texCoord;
 } vOut[];
 
-layout(location = 0) out VS_OUT
+layout(location = 0) out GS_OUT
 {
     vec3 wPos;
     vec3 wNorm;
