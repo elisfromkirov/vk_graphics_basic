@@ -6,23 +6,22 @@
 
 layout(location = 0) out vec4 out_fragColor;
 
-layout (location = 0 ) in VS_OUT
+layout (location = 0) in GS_OUT
 {
     vec3 wPos;
     vec3 wNorm;
     vec3 wTangent;
     vec2 texCoord;
-} surf;
+} gOut;
 
 layout(binding = 0, set = 0) uniform AppData
 {
     UniformParams Params;
 };
 
-
 void main()
 {
-    vec3 lightDir1 = normalize(Params.lightPos - surf.wPos);
+    vec3 lightDir1 = normalize(Params.lightPos - gOut.wPos);
     vec3 lightDir2 = vec3(0.0f, 0.0f, 1.0f);
 
     const vec4 dark_violet = vec4(0.59f, 0.0f, 0.82f, 1.0f);
@@ -34,7 +33,7 @@ void main()
 
     vec4 lightColor2 = vec4(1.0f, 1.0f, 1.0f, 1.0f);
 
-    vec3 N = surf.wNorm; 
+    vec3 N = gOut.wNorm; 
 
     vec4 color1 = max(dot(N, lightDir1), 0.0f) * lightColor1;
     vec4 color2 = max(dot(N, lightDir2), 0.0f) * lightColor2;
