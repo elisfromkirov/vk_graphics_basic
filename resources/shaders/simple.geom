@@ -25,72 +25,50 @@ layout(location = 0) out GS_OUT
     vec2 texCoord;
 } gOut;
 
-void emit_source_triangle()
+void EmitSourceVertex(uint i)
+{
+    gOut.wPos     = vOut[i].wPos;
+    gOut.wNorm    = vOut[i].wNorm;
+    gOut.wTangent = vOut[i].wTangent;
+    gOut.texCoord = vOut[i].texCoord;
+
+    gl_Position = gl_in[i].gl_Position;
+
+    EmitVertex();
+}
+
+void EmitTetrahedronVertex()
+{
+    vec3 normal = normalize(cross(vOut[2].wPos - vOut[1].wPos, vOut[0].wPos - vOut[1].wPos)) * 0.02;
+
+    gOut.wPos     = (vOut[0].wPos + vOut[1].wPos + vOut[2].wPos) / 3.0 + normal;
+    gOut.wNorm    = normal;
+    gOut.wTangent = (vOut[0].wTangent + vOut[1].wTangent + vOut[2].wTangent) / 3.0;
+    gOut.texCoord = (vOut[0].texCoord + vOut[1].texCoord + vOut[2].texCoord) / 3.0;
+
+    gl_Position = params.mProjView * vec4(gOut.wPos, 1.0);
+
+    EmitVertex();
+}
+
+void EmitSourceTriangle()
 {
     for (uint i = 0; i < 3; ++i)
     {
-        gOut.wPos     = vOut[i].wPos;
-        gOut.wNorm    = vOut[i].wNorm;
-        gOut.wTangent = vOut[i].wTangent;
-        gOut.texCoord = vOut[i].texCoord;
-
-        gl_Position = gl_in[i].gl_Position;
-
-        EmitVertex();
+        EmitSourceVertex(i);
     }
-
-    EndPrimitive();
 }
 
-void emit_tetrahedron()
+void EmitTetrahedron()
 {
-    vec3 normal = cross(vOut[2].wPos - vOut[1].wPos, vOut[0].wPos - vOut[1].wPos);
-    normal = normal / length(normal) * 0.02;
-
-    vec3 median_intersection_point = vec3(
-        (vOut[0].wPos.x + vOut[1].wPos.x + vOut[2].wPos.x) / 3.0,
-        (vOut[0].wPos.y + vOut[1].wPos.y + vOut[2].wPos.y) / 3.0,
-        (vOut[0].wPos.z + vOut[1].wPos.z + vOut[2].wPos.z) / 3.0
-    );
-
-    vec4 position = params.mProjView * vec4(median_intersection_point + normal, 1.0); 
-
-    gl_Position = position;
-    EmitVertex();
-    gl_Position = gl_in[0].gl_Position;
-    EmitVertex();
-    gl_Position = gl_in[1].gl_Position;
-    EmitVertex();
-    EndPrimitive();
-
-    gl_Position = position;
-    EmitVertex();
-    gl_Position = gl_in[0].gl_Position;
-    EmitVertex();
-    gl_Position = gl_in[1].gl_Position;
-    EmitVertex();
-    EndPrimitive();
-
-    gl_Position = position;
-    EmitVertex();
-    gl_Position = gl_in[1].gl_Position;
-    EmitVertex();
-    gl_Position = gl_in[2].gl_Position;
-    EmitVertex();
-    EndPrimitive();
-
-
-    gl_Position = position;
-    EmitVertex();
-    gl_Position = gl_in[2].gl_Position;
-    EmitVertex();
-    gl_Position = gl_in[0].gl_Position;
-    EmitVertex();
-    EndPrimitive();
+    EmitTetrahedronVertex();
+    EmitSourceVertex(0);
+    EmitSourceVertex(1);
 }
 
 void main()
 {
-    emit_source_triangle();
-    emit_tetrahedron();
+    EmitSourceTriangle();
+    EmitTetrahedron();
+    EndPrimitive();
 }
