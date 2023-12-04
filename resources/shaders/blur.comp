@@ -1,0 +1,93 @@
+#version 450
+
+#define  WORK_GROUP_SIZE 16
+
+#define BLUR_WINDOW_SIZE 11
+
+#define BLUR_WINDOW_SIZE_HALF BLUR_WINDOW_SIZE / 2
+
+#define IMAGE_CACHE_SIZE WORK_GROUP_SIZE + BLUR_WINDOW_SIZE_HALF * 2
+
+layout(local_size_x = WORK_GROUP_SIZE, local_size_y = WORK_GROUP_SIZE) in;
+
+layout (rgba32f, binding = 0) uniform image2D uImage;
+
+layout (rgba32f, binding = 1) uniform image2D uBlurredImage;
+
+layout (std140, binding = 2) uniform Blur
+{
+    float coeff[BLUR_WINDOW_SIZE]; // \frac{1}{\sqrt{2\pi\sigma^2}}\exp{-\frac{x^2}{2\sigma^2}}
+} uBlur;
+
+shared vec4 sImageCache[IMAGE_CACHE_SIZE][IMAGE_CACHE_SIZE];
+
+void main()
+{
+    ivec2 localCoord = ivec2(gl_LocalInvocationID.xy);
+    ivec2 globalCoord = ivec2(gl_GlobalInvocationID.xy);
+
+    ivec2 imageSize = imageSize(uImage);
+
+    ivec2 begin = ivec2(localCoord.x + BLUR_WINDOW_SIZE_HALF, localCoord.y + BLUR_WINDOW_SIZE_HALF);
+    if (localCoord.x == 0)
+    {
+        begin.x = 0;
+    }
+    if (localCoord.y == 0)
+    {
+        begin.y = 0;
+    }
+
+    ivec2 end = ivec2(localCoord.x + BLUR_WINDOW_SIZE_HALF + 1, localCoord.y + BLUR_WINDOW_SIZE_HALF + 1);
+    if (localCoord.x == WORK_GROUP_SIZE - 1)
+    {
+        end.x = IMAGE_CACHE_SIZE;
+    }
+    if (localCoord.y == WORK_GROUP_SIZE - 1)
+    {
+        end.y = IMAGE_CACHE_SIZE;
+    }
+
+    for (int x = begin.x; x < end.x; ++x)
+    {
+        for (int y = begin.y; y < end.y; ++y)
+        {
+            ivec2 coord = globalCoord - localCoord + ivec2(x, y);
+            if (coord.x < imageSize.x && coord.y < imageSize.y)
+            {
+                sImageCache[x][y] = imageLoad(uImage, coord);
+            }
+            else
+            {
+                sImageCache[x][y] = vec4(0.0, 0.0, 0.0, 0.0);
+            }
+        }
+    }
+
+    barrier();
+
+    vec4 color = vec4(0.0, 0.0, 0.0, 0.0);
+
+    for (int index = 0; index < BLUR_WINDOW_SIZE; ++index)
+    {
+        color += sImageCache[localCoord.x + BLUR_WINDOW_SIZE_HALF][localCoord.y + index] * uBlur.coeff[index];
+    }
+
+    barrier();
+
+    sImageCache[localCoord.x + BLUR_WINDOW_SIZE_HALF][localCoord.y + BLUR_WINDOW_SIZE_HALF] = color;
+
+    barrier();
+
+    color = vec4(0.0, 0.0, 0.0, 0.0);
+
+    for (int index = 0; index < BLUR_WINDOW_SIZE; ++index)
+    {
+        color += sImageCache[localCoord.x + index][localCoord.y + BLUR_WINDOW_SIZE_HALF] * uBlur.coeff[index];
+    }
+
+    if (globalCoord.x < imageSize.x && globalCoord.y < imageSize.y)
+    {
+        imageStore(uBlurredImage, globalCoord, color);
+    }
+}
