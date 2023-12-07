@@ -62,6 +62,8 @@ void SimpleRender::InitVulkan(const char** a_instanceExtensions, uint32_t a_inst
 
   m_pScnMgr = std::make_shared<SceneManager>(m_device, m_physicalDevice, m_queueFamilyIDXs.transfer,
                                              m_queueFamilyIDXs.graphics, false);
+
+  m_CopyEngine = std::make_unique<vk_utils::SimpleCopyHelper>(m_physicalDevice, m_device, m_transferQueue, m_queueFamilyIDXs.compute, 8 * 1024 * 1024);
 }
 
 void SimpleRender::InitPresentation(VkSurfaceKHR &a_surface, bool initGUI)
@@ -128,14 +130,17 @@ void SimpleRender::CreateDevice(uint32_t a_deviceId)
 void SimpleRender::SetupSimplePipeline()
 {
   std::vector<std::pair<VkDescriptorType, uint32_t> > dtypes = {
-      {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,             1}
+    { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
+    { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2 },
   };
 
   if(m_pBindings == nullptr)
     m_pBindings = std::make_shared<vk_utils::DescriptorMaker>(m_device, dtypes, 1);
 
-  m_pBindings->BindBegin(VK_SHADER_STAGE_FRAGMENT_BIT);
+  m_pBindings->BindBegin(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
   m_pBindings->BindBuffer(0, m_ubo, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+  m_pBindings->BindBuffer(1, m_InstanceInfo, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+  m_pBindings->BindBuffer(2, m_CulledInstanceInfo, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
   m_pBindings->BindEnd(&m_dSet, &m_dSetLayout);
 
   // if we are recreating pipeline (for example, to reload shaders)
@@ -213,6 +218,34 @@ void SimpleRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkFramebu
   vk_utils::setDefaultViewport(a_cmdBuff, static_cast<float>(m_width), static_cast<float>(m_height));
   vk_utils::setDefaultScissor(a_cmdBuff, m_width, m_height);
 
+  ///// frustum culling
+  {
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_FrustrumCullingPipeline);
+
+    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_FrustrumCullingPipelineLayout, 0, 1, &m_FrustrumCullingDescriptorSet, 0, VK_NULL_HANDLE);
+
+    m_PushConstants.ViewProj = pushConst2M.projView;
+    m_PushConstants.aabb = m_pScnMgr->GetMeshBbox(0);
+    m_PushConstants.instancesTotal = m_Instances;
+
+    vkCmdPushConstants(a_cmdBuff, m_FrustrumCullingPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstants), &m_PushConstants);
+
+    vkCmdDispatch(a_cmdBuff, (m_Instances - 1) / 32 + 1, 1, 1); 
+  }
+
+  /// barrier
+  {
+    VkBufferMemoryBarrier barrier{};
+    barrier.sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    barrier.buffer        = m_DrawIndexedIndirect;
+    barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+    barrier.offset        = 0;
+    barrier.size          = VK_WHOLE_SIZE;
+
+    vkCmdPipelineBarrier(a_cmdBuff, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+  }
+
   ///// draw final scene to screen
   {
     VkRenderPassBeginInfo renderPassInfo = {};
@@ -243,17 +276,9 @@ void SimpleRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkFramebu
     vkCmdBindVertexBuffers(a_cmdBuff, 0, 1, &vertexBuf, &zero_offset);
     vkCmdBindIndexBuffer(a_cmdBuff, indexBuf, 0, VK_INDEX_TYPE_UINT32);
 
-    for (uint32_t i = 0; i < m_pScnMgr->InstancesNum(); ++i)
-    {
-      auto inst = m_pScnMgr->GetInstanceInfo(i);
+    vkCmdPushConstants(a_cmdBuff, m_basicForwardPipeline.layout, stageFlags, 0, sizeof(pushConst2M), &pushConst2M);
 
-      pushConst2M.model = m_pScnMgr->GetInstanceMatrix(i);
-      vkCmdPushConstants(a_cmdBuff, m_basicForwardPipeline.layout, stageFlags, 0,
-                         sizeof(pushConst2M), &pushConst2M);
-
-      auto mesh_info = m_pScnMgr->GetMeshInfo(inst.mesh_id);
-      vkCmdDrawIndexed(a_cmdBuff, mesh_info.m_indNum, 1, mesh_info.m_indexOffset, mesh_info.m_vertexOffset, 0);
-    }
+    vkCmdDrawIndexedIndirect(a_cmdBuff, m_DrawIndexedIndirect, 0, 1, 0);
 
     vkCmdEndRenderPass(a_cmdBuff);
   }
@@ -355,6 +380,8 @@ void SimpleRender::Cleanup()
     m_surface = VK_NULL_HANDLE;
   }
 
+  m_CopyEngine.reset();
+
   if (m_basicForwardPipeline.pipeline != VK_NULL_HANDLE)
   {
     vkDestroyPipeline(m_device, m_basicForwardPipeline.pipeline, nullptr);
@@ -398,6 +425,56 @@ void SimpleRender::Cleanup()
   m_pBindings = nullptr;
   m_pScnMgr   = nullptr;
 
+  if (m_FrustrumCullingPipeline != VK_NULL_HANDLE)
+  {
+    vkDestroyPipeline(m_device, m_FrustrumCullingPipeline, nullptr);
+    m_FrustrumCullingPipeline = VK_NULL_HANDLE;
+  }
+
+  if (m_FrustrumCullingPipelineLayout != VK_NULL_HANDLE)
+  {
+    vkDestroyPipelineLayout(m_device, m_FrustrumCullingPipelineLayout, nullptr);
+    m_FrustrumCullingPipelineLayout = VK_NULL_HANDLE;
+  }
+
+  if (m_DrawIndexedIndirect != VK_NULL_HANDLE)
+  {
+    vkDestroyBuffer(m_device, m_DrawIndexedIndirect, nullptr);
+    m_DrawIndexedIndirect = VK_NULL_HANDLE;
+  }
+
+  if (m_DrawIndexedIndirectMemory != VK_NULL_HANDLE)
+  {
+    vkFreeMemory(m_device, m_DrawIndexedIndirectMemory, nullptr);
+    m_DrawIndexedIndirectMemory = VK_NULL_HANDLE;
+  }
+
+  if (m_InstanceInfo != VK_NULL_HANDLE)
+  {
+    vkDestroyBuffer(m_device, m_InstanceInfo, nullptr);
+    m_InstanceInfo = VK_NULL_HANDLE;
+  }
+
+  if (m_InstanceInfoMemory != VK_NULL_HANDLE)
+  {
+    vkFreeMemory(m_device, m_InstanceInfoMemory, nullptr);
+    m_InstanceInfoMemory = VK_NULL_HANDLE;
+  }
+
+  if (m_CulledInstanceInfo != VK_NULL_HANDLE)
+  {
+    vkDestroyBuffer(m_device, m_CulledInstanceInfo, nullptr);
+    m_CulledInstanceInfo = VK_NULL_HANDLE;
+  }
+
+  if (m_CulledInstanceInfoMemory != VK_NULL_HANDLE)
+  {
+    vkFreeMemory(m_device, m_CulledInstanceInfoMemory, nullptr);
+    m_CulledInstanceInfoMemory = VK_NULL_HANDLE;
+  }
+
+  m_FrustrumCullingBindings.reset();
+
   if(m_device != VK_NULL_HANDLE)
   {
     vkDestroyDevice(m_device, nullptr);
@@ -431,6 +508,8 @@ void SimpleRender::ProcessInput(const AppInput &input)
     std::system("cd ../resources/shaders && python3 compile_simple_render_shaders.py");
 #endif
 
+    SetupFrustrumCullingBuffers();
+    SetupFrustrumCulling();
     SetupSimplePipeline();
 
     for (uint32_t i = 0; i < m_framesInFlight; ++i)
@@ -463,6 +542,8 @@ void SimpleRender::LoadScene(const char* path, bool transpose_inst_matrices)
 {
   m_pScnMgr->LoadSceneXML(path, transpose_inst_matrices);
 
+  SetupFrustrumCullingBuffers();
+  SetupFrustrumCulling();
   CreateUniformBuffer();
   SetupSimplePipeline();
 
@@ -636,4 +717,99 @@ void SimpleRender::DrawFrameWithGUI()
   m_presentationResources.currentFrame = (m_presentationResources.currentFrame + 1) % m_framesInFlight;
 
   vkQueueWaitIdle(m_presentationResources.queue);
+}
+
+void SimpleRender::SetupFrustrumCullingBuffers()
+{
+  VkMemoryRequirements memoryRequirments{};
+  m_DrawIndexedIndirect = vk_utils::createBuffer(m_device, sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, &memoryRequirments);
+
+  VkMemoryAllocateInfo allocateInfo{};
+
+  allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  allocateInfo.pNext = nullptr;
+  allocateInfo.allocationSize = memoryRequirments.size;
+  allocateInfo.memoryTypeIndex = vk_utils::findMemoryType(memoryRequirments.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_physicalDevice);
+  VK_CHECK_RESULT(vkAllocateMemory(m_device, &allocateInfo, nullptr, &m_DrawIndexedIndirectMemory));
+
+  VK_CHECK_RESULT(vkBindBufferMemory(m_device, m_DrawIndexedIndirect, m_DrawIndexedIndirectMemory, 0));
+
+  VkDrawIndexedIndirectCommand drawIndexedIndirect{};
+  drawIndexedIndirect.firstIndex = m_pScnMgr->GetMeshInfo(MESH_ID).m_indexOffset;
+  drawIndexedIndirect.vertexOffset = m_pScnMgr->GetMeshInfo(MESH_ID).m_vertexOffset;
+  drawIndexedIndirect.firstInstance = 0;
+  drawIndexedIndirect.indexCount = m_pScnMgr->GetMeshInfo(MESH_ID).m_indNum;
+  drawIndexedIndirect.instanceCount = 0;
+
+  m_CopyEngine->UpdateBuffer(m_DrawIndexedIndirect, 0, &drawIndexedIndirect, sizeof(drawIndexedIndirect));
+
+  m_InstanceInfo = vk_utils::createBuffer(m_device, sizeof(mat4) * m_Instances, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, &memoryRequirments);
+
+  allocateInfo.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  allocateInfo.pNext           = nullptr;
+  allocateInfo.allocationSize  = memoryRequirments.size;
+  allocateInfo.memoryTypeIndex = vk_utils::findMemoryType(memoryRequirments.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_physicalDevice);
+  VK_CHECK_RESULT(vkAllocateMemory(m_device, &allocateInfo, nullptr, &m_CulledInstanceInfoMemory));
+
+  VK_CHECK_RESULT(vkBindBufferMemory(m_device, m_InstanceInfo, m_CulledInstanceInfoMemory, 0));
+
+  std::vector<mat4> models{ m_Instances };
+  for (uint32_t i = 0; i < m_Instances; ++i)
+  {
+    models[i][0][3] = (float(rand()) / float(RAND_MAX) - 0.5) * 500.f;
+    models[i][1][3] = (float(rand()) / float(RAND_MAX) - 0.5) * 500.f;
+    models[i][2][3] = (float(rand()) / float(RAND_MAX) - 0.5) * 500.f;
+  }
+
+  m_CopyEngine->UpdateBuffer(m_InstanceInfo, 0, models.data(), models.size() * sizeof(mat4));
+
+  m_CulledInstanceInfo = vk_utils::createBuffer(m_device, sizeof(uint32_t) * m_Instances, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, &memoryRequirments);
+
+  allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  allocateInfo.pNext = nullptr;
+  allocateInfo.allocationSize = memoryRequirments.size;
+  allocateInfo.memoryTypeIndex = vk_utils::findMemoryType(memoryRequirments.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_physicalDevice);
+  VK_CHECK_RESULT(vkAllocateMemory(m_device, &allocateInfo, nullptr, &m_CulledInstanceInfoMemory));
+
+  VK_CHECK_RESULT(vkBindBufferMemory(m_device, m_CulledInstanceInfo, m_CulledInstanceInfoMemory, 0));
+}
+
+void SimpleRender::SetupFrustrumCulling()
+{
+  std::vector<std::pair<VkDescriptorType, uint32_t>> descriptorTypes =
+  {
+    { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 }
+  };
+
+  if (!m_FrustrumCullingBindings)
+  {
+    m_FrustrumCullingBindings = std::make_unique<vk_utils::DescriptorMaker>(m_device, descriptorTypes, 1);
+  }
+
+  m_FrustrumCullingBindings->BindBegin(VK_SHADER_STAGE_COMPUTE_BIT);
+  m_FrustrumCullingBindings->BindBuffer(0, m_DrawIndexedIndirect, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+  m_FrustrumCullingBindings->BindBuffer(1, m_InstanceInfo, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+  m_FrustrumCullingBindings->BindBuffer(2, m_CulledInstanceInfo, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+  m_FrustrumCullingBindings->BindEnd(&m_FrustrumCullingDescriptorSet, &m_FrustrumCullingDescriptorSetLayout);
+
+  // if we are recreating pipeline (for example, to reload shaders)
+  // we need to cleanup old pipeline
+  if (m_FrustrumCullingPipelineLayout != VK_NULL_HANDLE)
+  {
+    vkDestroyPipelineLayout(m_device, m_FrustrumCullingPipelineLayout, nullptr);
+    m_FrustrumCullingPipelineLayout = VK_NULL_HANDLE;
+  }
+  if (m_FrustrumCullingPipeline != VK_NULL_HANDLE)
+  {
+    vkDestroyPipeline(m_device, m_FrustrumCullingPipeline, nullptr);
+    m_FrustrumCullingPipeline = VK_NULL_HANDLE;
+  }
+
+  vk_utils::ComputePipelineMaker maker;
+
+  maker.LoadShader(m_device, std::string(FRUSTRUM_CULLING_SHADER_PATH));
+
+  m_FrustrumCullingPipelineLayout = maker.MakeLayout(m_device, { m_FrustrumCullingDescriptorSetLayout }, sizeof(PushConstants));
+
+  m_FrustrumCullingPipeline = maker.MakePipeline(m_device);
 }

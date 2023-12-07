@@ -14,12 +14,17 @@
 #include <vk_swapchain.h>
 #include <string>
 #include <iostream>
+#include <string_view>
 
 class SimpleRender : public IRender
 {
 public:
   const std::string VERTEX_SHADER_PATH = "../resources/shaders/simple.vert";
   const std::string FRAGMENT_SHADER_PATH = "../resources/shaders/simple.frag";
+
+  static constexpr std::string_view FRUSTRUM_CULLING_SHADER_PATH = "../resources/shaders/frustrum_culling.comp.spv";
+
+  static constexpr size_t MESH_ID = 1;
 
   SimpleRender(uint32_t a_width, uint32_t a_height);
   ~SimpleRender()  { Cleanup(); };
@@ -122,6 +127,7 @@ protected:
   uint32_t m_width  = 1024u;
   uint32_t m_height = 1024u;
   uint32_t m_framesInFlight  = 2u;
+  uint32_t m_Instances = 10000u;
   bool m_vsync = false;
 
   VkPhysicalDeviceFeatures m_enabledDeviceFeatures = {};
@@ -132,6 +138,32 @@ protected:
   std::vector<const char*> m_validationLayers;
 
   std::shared_ptr<SceneManager> m_pScnMgr;
+
+  std::unique_ptr<vk_utils::ICopyEngine> m_CopyEngine;
+
+  struct PushConstants
+  {
+    LiteMath::float4x4 ViewProj;
+    Box4f aabb;
+    uint instancesTotal;
+  } m_PushConstants {};
+
+  VkBuffer m_DrawIndexedIndirect{ VK_NULL_HANDLE };
+  VkDeviceMemory m_DrawIndexedIndirectMemory{ VK_NULL_HANDLE };
+
+  VkBuffer m_InstanceInfo{ VK_NULL_HANDLE };
+  VkDeviceMemory m_InstanceInfoMemory{ VK_NULL_HANDLE };
+
+  VkBuffer m_CulledInstanceInfo{ VK_NULL_HANDLE };
+  VkDeviceMemory m_CulledInstanceInfoMemory{ VK_NULL_HANDLE };
+  
+  VkPipeline m_FrustrumCullingPipeline{ VK_NULL_HANDLE };
+  VkPipelineLayout m_FrustrumCullingPipelineLayout{ VK_NULL_HANDLE };
+
+  VkDescriptorSet m_FrustrumCullingDescriptorSet{ VK_NULL_HANDLE };
+  VkDescriptorSetLayout m_FrustrumCullingDescriptorSetLayout{ VK_NULL_HANDLE };
+
+  std::unique_ptr<vk_utils::DescriptorMaker> m_FrustrumCullingBindings{};
 
   void DrawFrameSimple();
 
@@ -153,7 +185,9 @@ protected:
   void SetupDeviceFeatures();
   void SetupDeviceExtensions();
   void SetupValidationLayers();
-};
 
+  void SetupFrustrumCullingBuffers();
+  void SetupFrustrumCulling();
+};
 
 #endif //SIMPLE_RENDER_H

@@ -1,0 +1,85 @@
+#version 430
+
+struct AABB
+{
+  vec4 minPosition;
+  vec4 maxPosition;
+};
+
+layout(local_size_x = 32) in;
+
+layout(push_constant) uniform Params
+{
+  mat4 uViewProj;
+  AABB uAABB;
+  uint uInstanceCount;
+};
+
+layout(std430, binding = 0) buffer DrawIndexedIndirect
+{
+  uint indexCount;
+  uint instanceCount;
+  uint firstIndex;
+  int vertexOffset;
+  uint firstInstance;
+};
+
+layout(std430, binding = 1) readonly buffer InstanceInfo
+{
+  mat4 model[];
+};
+
+layout(std430, binding = 2) buffer CulledInstanceInfo
+{
+  uint instanceId[];
+};
+
+bool Test(float left, float right, float value)
+{
+  return (left <= value) && (value <= right);
+}
+
+bool TestAABB(in mat4 modelViewProj, in AABB aabb) {
+  vec4 corners[8] = {
+    {aabb.minPosition.x, aabb.minPosition.y, aabb.minPosition.z, 1.0},
+    {aabb.maxPosition.x, aabb.minPosition.y, aabb.minPosition.z, 1.0},
+    {aabb.minPosition.x, aabb.maxPosition.y, aabb.minPosition.z, 1.0},
+    {aabb.maxPosition.x, aabb.maxPosition.y, aabb.minPosition.z, 1.0},
+    {aabb.minPosition.x, aabb.minPosition.y, aabb.maxPosition.z, 1.0},
+    {aabb.maxPosition.x, aabb.minPosition.y, aabb.maxPosition.z, 1.0},
+    {aabb.minPosition.x, aabb.maxPosition.y, aabb.maxPosition.z, 1.0},
+    {aabb.maxPosition.x, aabb.maxPosition.y, aabb.maxPosition.z, 1.0}
+  };
+  for (int i = 0; i < 8; ++i)
+  {
+    vec4 corner = modelViewProj * corners[i];
+    if (!(Test(-corner.w, corner.w, corner.x) && Test(-corner.w, corner.w, corner.y) && Test(0.0f, corner.w, corner.z)))
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+void main()
+{
+  uint id = gl_GlobalInvocationID.x;
+
+  if (id == 0)
+  {
+    instanceCount = 0;
+  }
+
+  barrier();
+
+	if (id < uInstanceCount)
+  {
+    mat4 modelViewProj = uViewProj * model[id];
+
+    if (TestAABB(modelViewProj, uAABB))
+    {
+      uint index = atomicAdd(instanceCount, 1);
+      instanceId[index] = id;
+    }
+	}
+}
