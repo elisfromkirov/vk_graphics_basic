@@ -36,7 +36,7 @@ void SimpleShadowmapRender::UpdateView()
     mProjFix = OpenglToVulkanProjectionMatrixFix(); 
   
   mLookAt       = LiteMath::lookAt(m_light.cam.pos, m_light.cam.pos + m_light.cam.forward()*10.0f, m_light.cam.up);
-  m_lightMatrix = mProjFix*mProj*mLookAt; // TODO: fix it
+  m_lightMatrix = mProj*mLookAt;
 }
 
 void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
