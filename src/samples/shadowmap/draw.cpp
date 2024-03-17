@@ -18,7 +18,19 @@ void SimpleShadowmapRender::DrawFrameSimple(bool draw_gui)
   VkSemaphore waitSemaphores[] = {m_presentationResources.imageAvailable};
   VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 
-  BuildCommandBufferSimple(currentCmdBuf, m_swapchain.GetAttachment(imageIdx).image, m_swapchain.GetAttachment(imageIdx).view);
+  switch (m_SelectedMode)
+  {
+     case SHADOW_MAPPING_MODE:
+     {
+       BuildCommandBufferSimple(currentCmdBuf, m_swapchain.GetAttachment(imageIdx).image, m_swapchain.GetAttachment(imageIdx).view);
+       break;
+     }
+     case VARIANCE_SHADOW_MAPPING_MODE:
+     {
+       BuildVarianceShadingCommandBuffer(currentCmdBuf, m_swapchain.GetAttachment(imageIdx).image, m_swapchain.GetAttachment(imageIdx).view);
+       break;
+     }
+  }
 
   std::vector<VkCommandBuffer> submitCmdBufs = { currentCmdBuf };
 

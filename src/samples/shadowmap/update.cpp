@@ -60,19 +60,19 @@ void SimpleShadowmapRender::ProcessInput(const AppInput &input)
     m_light.usePerspectiveM = !m_light.usePerspectiveM;
 
   // recreate pipeline to reload shaders
-  if(input.keyPressed[GLFW_KEY_B])
-  {
-#ifdef WIN32
-    std::system("cd ../resources/shaders && python compile_shadowmap_shaders.py");
-#else
-    std::system("cd ../resources/shaders && python3 compile_shadowmap_shaders.py");
-#endif
-
-    etna::reload_shaders();
-
-    for (uint32_t i = 0; i < m_framesInFlight; ++i)
-    {
-      BuildCommandBufferSimple(m_cmdBuffersDrawMain[i], m_swapchain.GetAttachment(i).image, m_swapchain.GetAttachment(i).view);
-    }
-  }
+//  if(input.keyPressed[GLFW_KEY_B])
+//  {
+//#ifdef WIN32
+//    std::system("cd ../resources/shaders && python compile_shadowmap_shaders.py");
+//#else
+//    std::system("cd ../resources/shaders && python3 compile_shadowmap_shaders.py");
+//#endif
+//
+//    etna::reload_shaders();
+//
+//    for (uint32_t i = 0; i < m_framesInFlight; ++i)
+//    {
+//      BuildCommandBufferSimple(m_cmdBuffersDrawMain[i], m_swapchain.GetAttachment(i).image, m_swapchain.GetAttachment(i).view);
+//    }
+//  }
 }

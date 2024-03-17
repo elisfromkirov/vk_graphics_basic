@@ -7,9 +7,19 @@ void SimpleShadowmapRender::SetupGUIElements()
   ImGui_ImplVulkan_NewFrame();
   ImGui_ImplGlfw_NewFrame();
   ImGui::NewFrame();
+
   {
-//    ImGui::ShowDemoWindow();
     ImGui::Begin("Simple render settings");
+
+    const char* names[] =
+    {
+      "shadow mapping",
+      "variance shadow mapping"
+    };
+
+    ImGui::Combo("mode", reinterpret_cast<int*>(& m_SelectedMode), names, std::size(names));
+
+    ImGui::NewLine();
 
     ImGui::ColorEdit3("Meshes base color", m_uniforms.baseColor.M, ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoInputs);
     ImGui::SliderFloat3("Light source position", m_uniforms.lightPos.M, -10.f, 10.f);

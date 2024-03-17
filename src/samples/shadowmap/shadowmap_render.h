@@ -50,6 +50,12 @@ private:
   etna::Sampler defaultSampler;
   etna::Buffer constants;
 
+  etna::Image m_LightViewDepthMap;
+  etna::Image m_LightViewDepthMomentsMap;
+  etna::Image m_LightViewDepthMomentsBlurredMap;
+
+  etna::Buffer m_BlurCoeff;
+
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
 
   struct
@@ -77,7 +83,11 @@ private:
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
-  
+
+  etna::GraphicsPipeline m_DepthMomentsMap{};
+  etna::ComputePipeline m_Blur{};
+  etna::GraphicsPipeline m_VarianceShading{};
+
   VkSurfaceKHR m_surface = VK_NULL_HANDLE;
   VulkanSwapChain m_swapchain;
 
@@ -100,6 +110,13 @@ private:
   {
     bool drawFSQuad = false;
   } m_input;
+
+  enum Mode : int
+  {
+    SHADOW_MAPPING_MODE = 0,
+    VARIANCE_SHADOW_MAPPING_MODE
+  };
+  Mode m_SelectedMode{ SHADOW_MAPPING_MODE };
 
   /**
   \brief basic parameters that you usually need for shadow mapping
@@ -127,6 +144,8 @@ private:
   void DrawFrameSimple(bool draw_gui);
 
   void BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView);
+
+  void BuildVarianceShadingCommandBuffer(VkCommandBuffer commandBuffer, VkImage targetImage, VkImageView targetImageView);
 
   void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp, VkPipelineLayout a_pipelineLayout = VK_NULL_HANDLE);
 
