@@ -50,6 +50,13 @@ private:
   etna::Sampler defaultSampler;
   etna::Buffer constants;
 
+  etna::Image m_SSAAMainView;
+  etna::Image m_SSAAMainViewDepth;
+
+  vk::SampleCountFlagBits m_Samples{vk::SampleCountFlagBits::e8};
+  etna::Image m_MSAAMainView;
+  etna::Image m_MSAAMainViewDepth;
+
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
 
   struct
@@ -77,7 +84,9 @@ private:
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
-  
+
+  etna::GraphicsPipeline m_MSAAForwardPipeline{};
+
   VkSurfaceKHR m_surface = VK_NULL_HANDLE;
   VulkanSwapChain m_swapchain;
 
@@ -123,7 +132,15 @@ private:
     bool   usePerspectiveM;  ///!< use perspective matrix if true and ortographics otherwise
   
   } m_light;
- 
+
+  enum Mode
+  {
+    None = 0,
+    SSAA,
+    MSAA
+  };
+  Mode m_SelectedMode{MSAA};
+
   void DrawFrameSimple(bool draw_gui);
 
   void BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView);

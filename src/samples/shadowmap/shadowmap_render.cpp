@@ -21,7 +21,7 @@ void SimpleShadowmapRender::AllocateResources()
     .name = "main_view_depth",
     .format = vk::Format::eD32Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment
-  });
+  }); 
 
   shadowMap = m_context->createImage(etna::Image::CreateInfo
   {
@@ -29,6 +29,36 @@ void SimpleShadowmapRender::AllocateResources()
     .name = "shadow_map",
     .format = vk::Format::eD16Unorm,
     .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled
+  });
+
+  m_SSAAMainView = m_context->createImage(etna::Image::CreateInfo{
+    .extent = vk::Extent3D{m_width * 2, m_height * 2, 1},
+    .name = "ssaa_main_view",
+    .format = vk::Format{m_swapchain.GetFormat()},
+    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc
+  });
+
+  m_SSAAMainViewDepth = m_context->createImage(etna::Image::CreateInfo{
+    .extent = vk::Extent3D{ m_width * 2, m_height * 2, 1 },
+    .name = "ssaa_main_view_depth",
+    .format = vk::Format::eD32Sfloat,
+    .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment
+  });
+
+  m_MSAAMainView = m_context->createImage(etna::Image::CreateInfo {
+    .extent = vk::Extent3D{ m_width, m_height, 1 },
+    .name = "ssaa_main_view",
+    .format = vk::Format{ m_swapchain.GetFormat() },
+    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment,
+    .samples = m_Samples
+  });
+
+  m_MSAAMainViewDepth = m_context->createImage(etna::Image::CreateInfo{
+    .extent = vk::Extent3D{ m_width, m_height, 1 },
+    .name = "ssaa_main_view_depth",
+    .format = vk::Format::eD32Sfloat,
+    .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment,
+    .samples = m_Samples
   });
 
   defaultSampler = etna::Sampler(etna::Sampler::CreateInfo{.name = "default_sampler"});
@@ -121,6 +151,19 @@ void SimpleShadowmapRender::SetupSimplePipeline()
           .depthAttachmentFormat = vk::Format::eD16Unorm
         }
     });
+  m_MSAAForwardPipeline  = pipelineManager.createGraphicsPipeline("simple_material",
+    {
+      .vertexShaderInput    = sceneVertexInputDesc,
+      .multisampleConfig =
+        {
+          .rasterizationSamples = m_Samples
+        },
+      .fragmentShaderOutput =
+        {
+         .colorAttachmentFormats = { static_cast<vk::Format>(m_swapchain.GetFormat()) },
+         .depthAttachmentFormat  = vk::Format::eD32Sfloat
+        }
+    });
 }
 
 
@@ -182,15 +225,85 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     VkDescriptorSet vkSet = set.getVkSet();
 
-    etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, m_width, m_height},
-      {{.image = a_targetImage, .view = a_targetImageView}},
-      {.image = mainViewDepth.get(), .view = mainViewDepth.getView({})});
+    switch (m_SelectedMode)
+    {
+    case None:
+    {
+      etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, m_width, m_height},
+        {{.image = a_targetImage, .view = a_targetImageView}},
+        {.image = mainViewDepth.get(), .view = mainViewDepth.getView({})});
 
-    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicForwardPipeline.getVkPipeline());
-    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
-      m_basicForwardPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+      vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicForwardPipeline.getVkPipeline());
+      vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicForwardPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
 
-    DrawSceneCmd(a_cmdBuff, m_worldViewProj, m_basicForwardPipeline.getVkPipelineLayout());
+      DrawSceneCmd(a_cmdBuff, m_worldViewProj, m_basicForwardPipeline.getVkPipelineLayout());
+
+      break;
+    }
+    case SSAA:
+    {
+      etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, m_width * 2, m_height * 2},
+        {{.image = m_SSAAMainView.get(), .view = m_SSAAMainView.getView({})}},
+        {.image = m_SSAAMainViewDepth.get(), .view = m_SSAAMainViewDepth.getView({})});
+        
+      vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicForwardPipeline.getVkPipeline());
+      vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicForwardPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+
+      DrawSceneCmd(a_cmdBuff, m_worldViewProj, m_basicForwardPipeline.getVkPipelineLayout());
+  
+      break;
+    }
+    case MSAA:
+    {
+      etna::RenderTargetState renderTargets(a_cmdBuff, {0, 0, m_width, m_height},
+        {{.image = m_MSAAMainView.get(), .view = m_MSAAMainView.getView({}), .resolveImage = a_targetImage, .resolveImageView = a_targetImageView, .resolveMode = vk::ResolveModeFlagBits::eAverage}},
+        {.image = m_MSAAMainViewDepth.get(), .view = m_MSAAMainViewDepth.getView({})});
+
+      vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_MSAAForwardPipeline.getVkPipeline());
+      vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_MSAAForwardPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+
+      DrawSceneCmd(a_cmdBuff, m_worldViewProj, m_MSAAForwardPipeline.getVkPipelineLayout());
+
+      break;
+    }
+    }
+  }
+
+  switch (m_SelectedMode)
+  {
+  case None:
+  {
+    break;
+  }
+  case SSAA:
+  {
+    etna::set_state(a_cmdBuff, m_SSAAMainView.get(), vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferRead, vk::ImageLayout::eTransferSrcOptimal, vk::ImageAspectFlagBits::eColor);
+
+    etna::set_state(a_cmdBuff, a_targetImage, vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferWrite, vk::ImageLayout::eTransferDstOptimal, vk::ImageAspectFlagBits::eColor);
+
+    etna::flush_barriers(a_cmdBuff);
+
+    VkImageBlit region{};
+    region.srcOffsets[0]                 = { 0, 0, 0 };
+    region.srcOffsets[1]                 = { (int)m_width * 2, (int)m_height * 2, 1 };
+    region.srcSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.srcSubresource.mipLevel       = 0;
+    region.srcSubresource.baseArrayLayer = 0;
+    region.srcSubresource.layerCount     = 1;
+    region.dstOffsets[0]                 = { 0, 0, 0 };
+    region.dstOffsets[1]                 = { (int)m_width, (int)m_height, 1 };
+    region.dstSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.dstSubresource.mipLevel       = 0;
+    region.dstSubresource.baseArrayLayer = 0;
+    region.dstSubresource.layerCount     = 1;
+    vkCmdBlitImage(a_cmdBuff, m_SSAAMainView.get(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, a_targetImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region, VK_FILTER_LINEAR);
+
+    break;
+  }
+  case MSAA:
+  {
+    break;
+  }
   }
 
   if(m_input.drawFSQuad)
