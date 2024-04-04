@@ -3,6 +3,12 @@
 
 // GLSL-C++ datatype compatibility layer
 
+#define BLUR_WINDOW_SIZE 15
+
+#define BLUR_WINDOW_SIZE_HALF BLUR_WINDOW_SIZE / 2
+
+#define WORK_GROUP_SIZE 16
+
 #ifdef __cplusplus
 
 #include <LiteMath.h>

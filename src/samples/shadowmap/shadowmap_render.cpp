@@ -64,7 +64,7 @@ void SimpleShadowmapRender::AllocateResources()
   });
 
   m_BlurCoeff = m_context->createBuffer({
-    .size        = 16 * 11,
+    .size        = 16 * BLUR_WINDOW_SIZE,
     .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
     .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
     .name        = "Coeff"
@@ -72,16 +72,13 @@ void SimpleShadowmapRender::AllocateResources()
 
   auto mappedBlurCoeff = (float *)m_BlurCoeff.map();
 
-  constexpr auto Pi    = M_PI;
-  constexpr auto Sigma = 1.84089642f;
+  constexpr auto PI    = M_PI;
+  constexpr auto SIGMA = 1.84089642f;
 
-  auto InverseTwoSigmaSquare                 = -1.f / (2.f * Sigma * Sigma);
-  auto InverseSquareRootFromTwoPiSigmaSquare = 1.f / sqrtf(2.f * Pi * Sigma * Sigma);
-
-  for (size_t i = 0; i < 11; ++i)
+  for (size_t i = 0; i < BLUR_WINDOW_SIZE; ++i)
   {
-    auto x                                    = 5.f - i;
-    auto coeff                                = InverseSquareRootFromTwoPiSigmaSquare * expf(InverseTwoSigmaSquare * x * x);
+    auto x = static_cast<float>(BLUR_WINDOW_SIZE_HALF) - i;
+    auto coeff                                = 1.f / sqrtf(2.f * PI * SIGMA * SIGMA) * expf(-1.f / (2.f * SIGMA * SIGMA) * x * x);
     mappedBlurCoeff[i * (16 / sizeof(float))] = coeff;
   }
 }
@@ -321,7 +318,7 @@ void SimpleShadowmapRender::BuildVarianceShadingCommandBuffer(VkCommandBuffer co
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_Blur.getVkPipeline());
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_Blur.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
 
-    vkCmdDispatch(commandBuffer, 2048 / 16, 2048 / 16, 1);
+    vkCmdDispatch(commandBuffer, 2048 / WORK_GROUP_SIZE, 2048 / WORK_GROUP_SIZE, 1);
   }
 
   //etna::set_state(commandBuffer, m_LightViewDepthMomentsMap.get(), vk::PipelineStageFlagBits2::eBlit, vk::AccessFlagBits2::eTransferRead, vk::ImageLayout::eTransferSrcOptimal, vk::ImageAspectFlagBits::eColor);

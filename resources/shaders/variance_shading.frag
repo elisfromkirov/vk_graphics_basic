@@ -29,7 +29,7 @@ void main()
 
   float shadow = 0.f;
 
-  if ((shadowTexCoord.x < 0.0001f || shadowTexCoord.x > 0.9999f || shadowTexCoord.y < 0.0091f || shadowTexCoord.y > 0.9999f))
+  if ((shadowTexCoord.x < 0.0001f || shadowTexCoord.x > 0.9999f || shadowTexCoord.y < 0.0001f || shadowTexCoord.y > 0.9999f))
   {
     shadow = 1.f;
   }
@@ -39,7 +39,7 @@ void main()
 
     const float depth = posLightSpaceNDC.z;
 
-    if (depth < depthMoments.x + 0.001f)
+    if (depth < depthMoments.x - 0.005f)
     {
       shadow = 1.f;
     }
