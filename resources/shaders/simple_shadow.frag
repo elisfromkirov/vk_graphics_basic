@@ -14,7 +14,7 @@ layout (location = 0 ) in VS_OUT
   vec2 texCoord;
 } surf;
 
-layout(binding = 0, set = 0) uniform AppsData
+layout(binding = 0, set = 0) uniform AppData
 {
   UniformParams Params;
 };
