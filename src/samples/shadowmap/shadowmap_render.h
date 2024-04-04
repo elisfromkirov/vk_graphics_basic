@@ -108,7 +108,7 @@ private:
   {
     ShadowMapCam() 
     {  
-      cam.pos    = float3(4.0f, 4.0f, 4.0f);
+      cam.pos    = float3(5.0f, 3.0f, 2.0f);
       cam.lookAt = float3(0, 0, 0);
       cam.up     = float3(0, 1, 0);
   
@@ -121,7 +121,9 @@ private:
     float  lightTargetDist;  ///!< identify depth range
     Camera cam;              ///!< user control for light to later get light worldViewProj matrix
     bool   usePerspectiveM;  ///!< use perspective matrix if true and ortographics otherwise
-  
+
+    float lightInnerAngle = 5.f;
+    float lightOuterAngle = 10.f;
   } m_light;
  
   void DrawFrameSimple(bool draw_gui);
