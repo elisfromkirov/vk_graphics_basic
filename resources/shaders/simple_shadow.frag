@@ -21,7 +21,7 @@ layout(binding = 0, set = 0) uniform AppData
 
 layout (binding = 1) uniform sampler2D shadowMap;
 
-    void main()
+void main()
 {
   const vec4 posLightClipSpace = Params.lightMatrix*vec4(surf.wPos, 1.0f); // 
   const vec3 posLightSpaceNDC  = posLightClipSpace.xyz/posLightClipSpace.w;    // for orto matrix, we don't need perspective division, you can remove it if you want; this is general case;
