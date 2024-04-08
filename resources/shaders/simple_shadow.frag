@@ -30,11 +30,11 @@ void main()
   float shadow = 0.0f;
   if (shadowTexCoord.x < 0.0001f || shadowTexCoord.x > 0.9999f || shadowTexCoord.y < 0.0001f || shadowTexCoord.y > 0.9999f)
   {
-    shadow = 1.0f;
+    shadow = 0.0f;
   }
   else
   {
-    if (posLightSpaceNDC.z > textureLod(shadowMap, shadowTexCoord, 0).x + 0.001f)
+    if (posLightSpaceNDC.z < textureLod(shadowMap, shadowTexCoord, 0).x + 0.001f)
     {
       const float angle = acos(dot(normalize(surf.wPos - Params.lightPos), normalize(Params.lightDir)));
       shadow = 1.0f - clamp((angle - Params.lightInnerAngle) / (Params.lightOuterAngle - Params.lightInnerAngle), 0.0f, 1.0f);
