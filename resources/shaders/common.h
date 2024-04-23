@@ -44,11 +44,12 @@ using shader_bool  = LiteMath::uint;
 
 struct UniformParams
 {
-  shader_mat4  lightMatrix;
-  shader_vec3  lightPos;
-  shader_float time;
-  shader_vec3  baseColor;
-  shader_bool  animateLightColor;
+  shader_mat4  LightProjView;
+  shader_vec4  LightPosition;
+  shader_vec3  LightColor;
+  shader_float Radius;
+  shader_float Intensity;
+  shader_float Time;
 };
 
 #endif // VK_GRAPHICS_BASIC_COMMON_H

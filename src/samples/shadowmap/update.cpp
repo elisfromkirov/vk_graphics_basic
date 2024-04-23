@@ -41,9 +41,12 @@ void SimpleShadowmapRender::UpdateView()
 
 void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
 {
-  m_uniforms.lightMatrix = m_lightMatrix;
-  m_uniforms.lightPos    = m_light.cam.pos; //LiteMath::float3(sinf(a_time), 1.0f, cosf(a_time));
-  m_uniforms.time        = a_time;
+  m_uniforms.LightProjView = m_lightMatrix;
+  m_uniforms.LightPosition = LiteMath::float4(m_light.cam.pos[0], m_light.cam.pos[1], m_light.cam.pos[2], 1.0f);
+  m_uniforms.LightColor    = LiteMath::float3(1.0f, 1.0f, 1.0f);
+  m_uniforms.Radius        = m_Radius;
+  m_uniforms.Intensity     = m_Intensity;
+  m_uniforms.Time          = a_time;
 
   memcpy(m_uboMappedMem, &m_uniforms, sizeof(m_uniforms));
 }
@@ -60,19 +63,19 @@ void SimpleShadowmapRender::ProcessInput(const AppInput &input)
     m_light.usePerspectiveM = !m_light.usePerspectiveM;
 
   // recreate pipeline to reload shaders
-  if(input.keyPressed[GLFW_KEY_B])
-  {
-#ifdef WIN32
-    std::system("cd ../resources/shaders && python compile_shadowmap_shaders.py");
-#else
-    std::system("cd ../resources/shaders && python3 compile_shadowmap_shaders.py");
-#endif
-
-    etna::reload_shaders();
-
-    for (uint32_t i = 0; i < m_framesInFlight; ++i)
-    {
-      BuildCommandBufferSimple(m_cmdBuffersDrawMain[i], m_swapchain.GetAttachment(i).image, m_swapchain.GetAttachment(i).view);
-    }
-  }
+  //  if(input.keyPressed[GLFW_KEY_B])
+  //  {
+  //#ifdef WIN32
+  //    std::system("cd ../resources/shaders && python compile_shadowmap_shaders.py");
+  //#else
+  //    std::system("cd ../resources/shaders && python3 compile_shadowmap_shaders.py");
+  //#endif
+  //
+  //    etna::reload_shaders();
+  //
+  //    for (uint32_t i = 0; i < m_framesInFlight; ++i)
+  //    {
+  //      BuildCommandBufferSimple(m_cmdBuffersDrawMain[i], m_swapchain.GetAttachment(i).image, m_swapchain.GetAttachment(i).view);
+  //    }
+  //  }
 }

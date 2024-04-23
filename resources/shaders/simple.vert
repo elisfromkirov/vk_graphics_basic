@@ -4,36 +4,26 @@
 
 #include "unpack_attributes.h"
 
-
-layout(location = 0) in vec4 vPosNorm;
-layout(location = 1) in vec4 vTexCoordAndTang;
-
-layout(push_constant) uniform params_t
+layout (push_constant) uniform PushConstant
 {
-    mat4 mProjView;
-    mat4 mModel;
-} params;
+    mat4 ProjView;
+    mat4 Model;
+    vec4 Color;
+};
 
+layout (location = 0) in vec4 in_PositionNormal;
+layout (location = 1) in vec4 in_TexCoordTangent;
 
-layout (location = 0 ) out VS_OUT
-{
-    vec3 wPos;
-    vec3 wNorm;
-    vec3 wTangent;
-    vec2 texCoord;
+layout (location = 0) out vec4 out_Position;
+layout (location = 1) out vec4 out_Normal; 
 
-} vOut;
-
-out gl_PerVertex { vec4 gl_Position; };
 void main(void)
 {
-    const vec4 wNorm = vec4(DecodeNormal(floatBitsToInt(vPosNorm.w)),         0.0f);
-    const vec4 wTang = vec4(DecodeNormal(floatBitsToInt(vTexCoordAndTang.z)), 0.0f);
+    const vec4 position = vec4(in_PositionNormal.xyz, 1.0f);
+    const vec4 normal = vec4(DecodeNormal(floatBitsToInt(in_PositionNormal.w)), 0.0f);
 
-    vOut.wPos     = (params.mModel * vec4(vPosNorm.xyz, 1.0f)).xyz;
-    vOut.wNorm    = normalize(mat3(transpose(inverse(params.mModel))) * wNorm.xyz);
-    vOut.wTangent = normalize(mat3(transpose(inverse(params.mModel))) * wTang.xyz);
-    vOut.texCoord = vTexCoordAndTang.xy;
+    out_Position = Model * position;
+    out_Normal = normalize(transpose(inverse(Model)) * normal);
 
-    gl_Position   = params.mProjView * vec4(vOut.wPos, 1.0);
+    gl_Position = ProjView * out_Position;
 }

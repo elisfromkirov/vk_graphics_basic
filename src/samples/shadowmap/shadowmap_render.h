@@ -27,28 +27,48 @@ public:
   SimpleShadowmapRender(uint32_t a_width, uint32_t a_height);
   ~SimpleShadowmapRender();
 
-  uint32_t     GetWidth()      const override { return m_width; }
-  uint32_t     GetHeight()     const override { return m_height; }
-  VkInstance   GetVkInstance() const override { return m_context->getInstance(); }
+  uint32_t GetWidth() const override { return m_width; }
+  uint32_t GetHeight() const override { return m_height; }
+  VkInstance GetVkInstance() const override { return m_context->getInstance(); }
 
-  void InitVulkan(const char** a_instanceExtensions, uint32_t a_instanceExtensionsCount, uint32_t a_deviceId) override;
+  void InitVulkan(const char **a_instanceExtensions, uint32_t a_instanceExtensionsCount, uint32_t a_deviceId) override;
 
   void InitPresentation(VkSurfaceKHR &a_surface, bool initGUI) override;
 
-  void ProcessInput(const AppInput& input) override;
-  void UpdateCamera(const Camera* cams, uint32_t a_camsNumber) override;
-  Camera GetCurrentCamera() override {return m_cam;}
+  void ProcessInput(const AppInput &input) override;
+  void UpdateCamera(const Camera *cams, uint32_t a_camsNumber) override;
+  Camera GetCurrentCamera() override { return m_cam; }
   void UpdateView();
 
   void LoadScene(const char *path, bool transpose_inst_matrices) override;
   void DrawFrame(float a_time, DrawMode a_mode) override;
 
 private:
-  etna::GlobalContext* m_context;
+  etna::GlobalContext *m_context;
   etna::Image mainViewDepth;
   etna::Image shadowMap;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
+
+  etna::Image m_Depth{};
+  etna::Image m_Position{};
+  etna::Image m_Normal{};
+  etna::Image m_Flux{};
+  etna::Sampler m_Sampler{};
+  etna::GraphicsPipeline m_MapsGenerationRSM{};
+  etna::GraphicsPipeline m_ShadowRSM{};
+  bool m_Enabled{false};
+  float m_Radius{0.2f};
+  float m_Intensity{0.075f};
+
+  float3 m_Colors[6] = {
+    {0.5, 0.0, 0.0},
+    {0.0, 0.5, 0.0},
+    {0.0, 0.0, 0.5},
+    {0.5, 0.5, 0.0},
+    {0.5, 0.0, 0.5},
+    {0.0, 0.5, 0.5}
+  };
 
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
 
@@ -67,10 +87,11 @@ private:
   {
     float4x4 projView;
     float4x4 model;
+    float3   color;
   } pushConst2M;
 
   float4x4 m_worldViewProj;
-  float4x4 m_lightMatrix;    
+  float4x4 m_lightMatrix;
 
   UniformParams m_uniforms {};
   void* m_uboMappedMem = nullptr;
@@ -128,7 +149,7 @@ private:
 
   void BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView);
 
-  void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp, VkPipelineLayout a_pipelineLayout = VK_NULL_HANDLE);
+  void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4 &a_wvp, VkPipelineLayout a_pipelineLayout, VkShaderStageFlags a_flags);
 
   void loadShaders();
 
