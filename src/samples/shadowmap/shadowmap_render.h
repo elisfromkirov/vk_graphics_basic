@@ -50,6 +50,14 @@ private:
   etna::Sampler defaultSampler;
   etna::Buffer constants;
 
+  etna::Image m_ColorMap;
+  etna::GraphicsPipeline m_ToneMapping;
+
+  int m_ToneMappingMode{NO_TONE_MAPPING};
+  float m_Intensity{3.5f};
+  float m_Gamma{2.2f};
+  float m_Exposure{1.0f};
+
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
 
   struct

@@ -3,6 +3,10 @@
 
 // GLSL-C++ datatype compatibility layer
 
+#define NO_TONE_MAPPING 0
+#define EXPOSURE_TONE_MAPPING 1
+#define REINHARD_TONE_MAPPING 2
+
 #ifdef __cplusplus
 
 #include <LiteMath.h>
@@ -49,6 +53,10 @@ struct UniformParams
   shader_float time;
   shader_vec3  baseColor;
   shader_bool  animateLightColor;
+  int		   ToneMappingMode;
+  shader_float Intensity;
+  shader_float Gamma;
+  shader_float Exposure;
 };
 
 #endif // VK_GRAPHICS_BASIC_COMMON_H

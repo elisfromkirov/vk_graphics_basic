@@ -14,7 +14,7 @@ layout (location = 0 ) in VS_OUT
   vec2 texCoord;
 } surf;
 
-layout(binding = 0, set = 0) uniform AppData
+layout (binding = 0, set = 0) uniform AppData
 {
   UniformParams Params;
 };
@@ -38,5 +38,5 @@ void main()
    
   vec3 lightDir   = normalize(Params.lightPos - surf.wPos);
   vec4 lightColor = max(dot(surf.wNorm, lightDir), 0.0f) * lightColor1;
-  out_fragColor   = (lightColor*shadow + vec4(0.1f)) * vec4(Params.baseColor, 1.0f);
+  out_fragColor   = (Params.Intensity * lightColor*shadow + vec4(0.1f)) * vec4(Params.baseColor, 1.0f);
 }

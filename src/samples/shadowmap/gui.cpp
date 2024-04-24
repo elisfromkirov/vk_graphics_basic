@@ -11,6 +11,19 @@ void SimpleShadowmapRender::SetupGUIElements()
 //    ImGui::ShowDemoWindow();
     ImGui::Begin("Simple render settings");
 
+    const char *names[] = {
+      "off",
+      "exposure",
+      "reinhard"
+    };
+
+    ImGui::Combo("tone mapping", reinterpret_cast<int *>(&m_ToneMappingMode), names, std::size(names));
+    ImGui::SliderFloat("light intensity", &m_Intensity, 0.5f, 5.0f);
+    ImGui::SliderFloat("gamma", &m_Gamma, 0.5f, 5.0f);
+    ImGui::SliderFloat("exposure", &m_Exposure, 0.5f, 5.0f);
+
+    ImGui::NewLine();
+
     ImGui::ColorEdit3("Meshes base color", m_uniforms.baseColor.M, ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoInputs);
     ImGui::SliderFloat3("Light source position", m_uniforms.lightPos.M, -10.f, 10.f);
 
