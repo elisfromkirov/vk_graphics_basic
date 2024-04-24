@@ -17,10 +17,10 @@ void SimpleShadowmapRender::SetupGUIElements()
       "reinhard"
     };
 
-    ImGui::Combo("tone mapping", reinterpret_cast<int *>(&m_ToneMappingMode), names, std::size(names));
-    ImGui::SliderFloat("light intensity", &m_Intensity, 0.5f, 5.0f);
-    ImGui::SliderFloat("gamma", &m_Gamma, 0.5f, 5.0f);
-    ImGui::SliderFloat("exposure", &m_Exposure, 0.5f, 5.0f);
+    ImGui::Combo("tone mapping", &m_ToneMappingMode, names, std::size(names));
+    ImGui::SliderFloat("light intensity", &m_Intensity, 0.1f, 5.0f);
+    ImGui::SliderFloat("gamma", &m_Gamma, 0.1f, 5.0f);
+    ImGui::SliderFloat("exposure", &m_Exposure, 0.1f, 5.0f);
 
     ImGui::NewLine();
 
